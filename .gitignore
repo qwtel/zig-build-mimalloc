@@ -4,6 +4,8 @@ ide/vs20??/*.user
 ide/vs20??/*.vcxproj.filters
 ide/vs20??/.vs
 ide/vs20??/VTune*
+.zig-cache/
 out/
+zig-out/
 docs/
 *.zip
