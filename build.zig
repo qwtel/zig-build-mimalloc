@@ -2,6 +2,7 @@
 // Based on CMakeLists.txt but only makes a static build with most options disabled.
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -71,7 +72,20 @@ pub fn build(b: *std.Build) !void {
         .files = mi_sources.items,
         .flags = mi_cflags.items,
     });
-    lib.linkLibC();
+
+    // XXX: Workaround for outdated libc in Zig for macOS Sonoma. Hopefully this will get fixed sometime. Can only be used on macOS.
+    // Need to create new `zig libc > macos-libc.ini` and then replace `include_dir` and `sys_include_dir`
+    // with output from `xcrun --show-sdk-path --sdk macosx` ++ `/usr/include`.
+    if (target.result.isDarwin()) {
+        if (builtin.os.tag == .macos) {
+            lib.setLibCFile(b.path("macos-libc.ini"));
+        } else {
+            return error.UnsupportedOperatingSystem;
+        }
+    } else {
+        lib.linkLibC();
+    }
+
     for (mi_libraries.items) |library| {
         lib.linkSystemLibrary(library);
     }
