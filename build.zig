@@ -46,7 +46,14 @@ pub fn build(b: *std.Build) !void {
 
     // Compiler flags
     if (result.isBSD() or os.tag == .linux) {
-        try mi_cflags.appendSlice(&.{ "-Wall", "-Wextra", "-Wno-unknown-pragmas", "-fvisibility=hidden", "-Wstrict-prototypes" });
+        try mi_cflags.appendSlice(&.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Wno-unknown-pragmas",
+            "-fvisibility=hidden",
+            "-Wstrict-prototypes",
+        });
     }
 
     // XXX: Not sure if this is even necessary in zig build. Copied from CMakeLists.txt

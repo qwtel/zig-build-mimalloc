@@ -1,0 +1,3 @@
+# Need to put `CommonCryptoError.h` and `CommonRandom.h` here for macos cross-compilation to work.
+*
+!.gitignore
