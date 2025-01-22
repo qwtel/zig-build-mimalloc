@@ -7,7 +7,7 @@ terms of the MIT license. A copy of the license can be found in the file
 
 /* ----------------------------------------------------------------------------
 Concurrent bitmap that can set/reset sequences of bits atomically,
-represeted as an array of fields where each field is a machine word (`size_t`)
+represented as an array of fields where each field is a machine word (`size_t`)
 
 There are two api's; the standard one cannot have sequences that cross
 between the bitmap fields (and a sequence must be <= MI_BITMAP_FIELD_BITS).
@@ -260,6 +260,7 @@ static bool mi_bitmap_try_find_claim_field_across(mi_bitmap_t bitmap, size_t bit
   } while (!mi_atomic_cas_strong_acq_rel(field, &map, newmap));
 
   // claimed!
+  mi_stat_counter_increase(_mi_stats_main.arena_crossover_count,1);
   *bitmap_idx = mi_bitmap_index_create(idx, initial_idx);
   return true;
 
@@ -279,6 +280,7 @@ rollback:
       newmap = (map & ~initial_mask);
     } while (!mi_atomic_cas_strong_acq_rel(field, &map, newmap));
   }
+  mi_stat_counter_increase(_mi_stats_main.arena_rollback_count,1);
   // retry? (we make a recursive call instead of goto to be able to use const declarations)
   if (retries <= 2) {
     return mi_bitmap_try_find_claim_field_across(bitmap, bitmap_fields, idx, count, retries+1, bitmap_idx);
@@ -303,11 +305,13 @@ bool _mi_bitmap_try_find_from_claim_across(mi_bitmap_t bitmap, const size_t bitm
   for (size_t visited = 0; visited < bitmap_fields; visited++, idx++) {
     if (idx >= bitmap_fields) { idx = 0; } // wrap
     // first try to claim inside a field
+    /*
     if (count <= MI_BITMAP_FIELD_BITS) {
       if (_mi_bitmap_try_find_claim_field(bitmap, idx, count, bitmap_idx)) {
         return true;
       }
     }
+    */
     // if that fails, then try to claim across fields
     if (mi_bitmap_try_find_claim_field_across(bitmap, bitmap_fields, idx, count, 0, bitmap_idx)) {
       return true;
