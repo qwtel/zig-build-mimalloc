@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) !void {
         "src/bitmap.c",
         "src/heap.c",
         "src/init.c",
+        "src/libc.c",
         "src/options.c",
         "src/os.c",
         "src/page.c",
@@ -46,7 +47,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     // Compiler flags
-    if (result.isBSD() or os.tag == .linux) {
+    if (result.os.tag.isBSD() or os.tag == .linux) {
         try mi_cflags.appendSlice(&.{
             "-std=c11",
             "-Wall",
@@ -54,7 +55,20 @@ pub fn build(b: *std.Build) !void {
             "-Wno-unknown-pragmas",
             "-fvisibility=hidden",
             "-Wstrict-prototypes",
+            "-Wno-static-in-inline",
+            if (result.abi.isMusl()) "-ftls-model=local-dynamic" else "-ftls-model=initial-exec",
         });
+
+        if (result.abi.isMusl()) {
+            lib.root_module.addCMacro("MI_LIBC_MUSL", "1");
+        }
+    }
+
+    // Architecture-specific optimization flags (like MI_OPT_ARCH_FLAGS)
+    if (optimize != .Debug) {
+        if (result.cpu.arch.isAARCH64()) {
+            try mi_cflags.append("-march=armv8.1-a");
+        }
     }
 
     // XXX: Not sure if this is even necessary in zig build. Copied from CMakeLists.txt
@@ -65,7 +79,9 @@ pub fn build(b: *std.Build) !void {
         if (os.tag == .linux) {
             try mi_libraries.appendSlice(&.{"rt"});
         }
-        // XXX: Do atomics need explicit linking?
+        if (shouldLinkLibAtomic(result)) {
+            try mi_libraries.appendSlice(&.{"atomic"});
+        }
     }
 
     lib.addCSourceFiles(.{
@@ -76,7 +92,7 @@ pub fn build(b: *std.Build) !void {
     // XXX: Workaround for outdated libc in Zig for macOS Sonoma. Hopefully this will get fixed sometime. Can only be used on macOS.
     // Need to create new `zig libc > macos-libc.ini` and then replace `include_dir` and `sys_include_dir`
     // with output from `xcrun --show-sdk-path --sdk macosx` ++ `/usr/include`.
-    if (target.result.isDarwin()) {
+    if (target.result.os.tag.isDarwin()) {
         if (builtin.os.tag == .macos) {
             lib.setLibCFile(b.path("macos-libc.ini"));
         } else {
@@ -89,9 +105,19 @@ pub fn build(b: *std.Build) !void {
     for (mi_libraries.items) |library| {
         lib.linkSystemLibrary(library);
     }
-    lib.defineCMacro("MI_STATIC_LIB", "1");
+    lib.root_module.addCMacro("MI_STATIC_LIB", "1");
 
     lib.installHeadersDirectory(b.path("include"), "", .{});
 
     b.installArtifact(lib);
+}
+
+// Helper function to determine if libatomic should be linked
+fn shouldLinkLibAtomic(target: std.Target) bool {
+    return switch (target.cpu.arch) {
+        .arm, .armeb, .thumb, .thumbeb => true, // ARM 32-bit
+        .aarch64, .aarch64_be => false, // ARM 64-bit typically has native atomics
+        .riscv32, .riscv64 => true, // RISC-V might need libatomic on some systems
+        else => false, // Assume x86, x86_64, and others have native atomics
+    };
 }
