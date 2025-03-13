@@ -89,18 +89,7 @@ pub fn build(b: *std.Build) !void {
         .flags = mi_cflags.items,
     });
 
-    // XXX: Workaround for outdated libc in Zig for macOS Sonoma. Hopefully this will get fixed sometime. Can only be used on macOS.
-    // Need to create new `zig libc > macos-libc.ini` and then replace `include_dir` and `sys_include_dir`
-    // with output from `xcrun --show-sdk-path --sdk macosx` ++ `/usr/include`.
-    if (target.result.os.tag.isDarwin()) {
-        if (builtin.os.tag == .macos) {
-            lib.setLibCFile(b.path("macos-libc.ini"));
-        } else {
-            return error.UnsupportedOperatingSystem;
-        }
-    } else {
-        lib.linkLibC();
-    }
+    lib.linkLibC();
 
     for (mi_libraries.items) |library| {
         lib.linkSystemLibrary(library);
