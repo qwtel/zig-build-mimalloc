@@ -57,12 +57,19 @@ terms of the MIT license. A copy of the license can be found in the file
   #include <sys/sysctl.h>
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__FreeBSD__)
   #define MI_HAS_SYSCALL_H
   #include <sys/syscall.h>
 #endif
 
+#if !defined(MADV_DONTNEED) && defined(POSIX_MADV_DONTNEED)  // QNX
+#define MADV_DONTNEED  POSIX_MADV_DONTNEED
+#endif
+#if !defined(MADV_FREE) && defined(POSIX_MADV_FREE)  // QNX
+#define MADV_FREE  POSIX_MADV_FREE
+#endif
 
+  
 //------------------------------------------------------------------------------------
 // Use syscalls for some primitives to allow for libraries that override open/read/close etc.
 // and do allocation themselves; using syscalls prevents recursion when mimalloc is
@@ -142,8 +149,9 @@ void _mi_prim_mem_init( mi_os_mem_config_t* config )
     config->alloc_granularity = (size_t)psize;
     #if defined(_SC_PHYS_PAGES)
     long pphys = sysconf(_SC_PHYS_PAGES);
-    if (pphys > 0 && (size_t)pphys < (SIZE_MAX/(size_t)psize)) {
-      config->physical_memory = (size_t)pphys * (size_t)psize;
+    const size_t psize_in_kib = (size_t)psize / MI_KiB;
+    if (psize_in_kib > 0 && pphys > 0 && (size_t)pphys <= (SIZE_MAX/psize_in_kib)) {
+      config->physical_memory_in_kib = (size_t)pphys * psize_in_kib;
     }
     #endif
   }
@@ -189,6 +197,8 @@ int _mi_prim_free(void* addr, size_t size ) {
 static int unix_madvise(void* addr, size_t size, int advice) {
   #if defined(__sun)
   int res = madvise((caddr_t)addr, size, advice);  // Solaris needs cast (issue #520)
+  #elif defined(__QNX__)
+  int res = posix_madvise(addr, size, advice);
   #else
   int res = madvise(addr, size, advice);
   #endif
