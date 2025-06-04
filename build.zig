@@ -95,6 +95,8 @@ pub fn build(b: *std.Build) !void {
         lib.linkSystemLibrary(library);
     }
     lib.root_module.addCMacro("MI_STATIC_LIB", "1");
+    lib.root_module.addCMacro("__DATE__", "\"2025-06-03\"");
+    lib.root_module.addCMacro("__TIME__", "\"11:14:00\"");
 
     lib.installHeadersDirectory(b.path("include"), "", .{});
 
