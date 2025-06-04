@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     // Compiler flags
-    if (result.os.tag.isBSD() or os.tag == .linux) {
+    if (result.os.tag.isBSD() or os.tag == .linux or os.tag == .macos) {
         try mi_cflags.appendSlice(&.{
             "-std=c11",
             "-Wall",
@@ -56,11 +56,12 @@ pub fn build(b: *std.Build) !void {
             "-fvisibility=hidden",
             "-Wstrict-prototypes",
             "-Wno-static-in-inline",
-            if (result.abi.isMusl()) "-ftls-model=local-dynamic" else "-ftls-model=initial-exec",
         });
-
         if (result.abi.isMusl()) {
+            try mi_cflags.append("-ftls-model=local-dynamic");
             lib.root_module.addCMacro("MI_LIBC_MUSL", "1");
+        } else {
+            try mi_cflags.append("-ftls-model=initial-exec");
         }
     }
 
@@ -69,6 +70,11 @@ pub fn build(b: *std.Build) !void {
         if (result.cpu.arch.isAARCH64()) {
             try mi_cflags.append("-march=armv8.1-a");
         }
+    }
+
+    // Add MI_BUILD_RELEASE define for non-debug builds (to match CMake)
+    if (optimize != .Debug) {
+        lib.root_module.addCMacro("MI_BUILD_RELEASE", "1");
     }
 
     // XXX: Not sure if this is even necessary in zig build. Copied from CMakeLists.txt
