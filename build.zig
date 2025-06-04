@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     // Compiler flags
-    if (result.os.tag.isBSD() or os.tag == .linux or os.tag == .macos) {
+    if (result.os.tag.isBSD() or os.tag == .linux) {
         try mi_cflags.appendSlice(&.{
             "-std=c11",
             "-Wall",
