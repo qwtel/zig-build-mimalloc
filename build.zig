@@ -8,10 +8,13 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "mimalloc-static",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     lib.addIncludePath(b.path("include"));
@@ -20,9 +23,9 @@ pub fn build(b: *std.Build) !void {
     const result = target.result;
     const os = result.os;
 
-    var mi_sources = std.ArrayList([]const u8).init(b.allocator);
-    var mi_cflags = std.ArrayList([]const u8).init(b.allocator);
-    var mi_libraries = std.ArrayList([]const u8).init(b.allocator);
+    var mi_sources = std.array_list.Managed([]const u8).init(b.allocator);
+    var mi_cflags = std.array_list.Managed([]const u8).init(b.allocator);
+    var mi_libraries = std.array_list.Managed([]const u8).init(b.allocator);
     defer mi_sources.deinit();
     defer mi_cflags.deinit();
     defer mi_libraries.deinit();
