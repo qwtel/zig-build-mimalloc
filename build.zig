@@ -1,3 +1,6 @@
+// Minimal build.zig file for mimalloc.
+// Based on CMakeLists.txt but only makes a static build with most options disabled.
+
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
@@ -6,7 +9,7 @@ pub fn build(b: *std.Build) !void {
 
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "mimalloc",
+        .name = "mimalloc-static",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
@@ -65,16 +68,19 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
+    // Architecture-specific optimization flags (like MI_OPT_ARCH_FLAGS)
     if (optimize != .Debug) {
         if (result.cpu.arch.isAARCH64()) {
             try mi_cflags.append("-march=armv8.1-a");
         }
     }
 
+    // Add MI_BUILD_RELEASE define for non-debug builds (to match CMake)
     if (optimize != .Debug) {
         lib.root_module.addCMacro("MI_BUILD_RELEASE", "1");
     }
 
+    // XXX: Not sure if this is even necessary in zig build. Copied from CMakeLists.txt
     if (os.tag == .windows) {
         try mi_libraries.appendSlice(&.{ "psapi", "shell32", "user32", "advapi32", "bcrypt" });
     } else {
@@ -103,11 +109,12 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(lib);
 }
 
+// Helper function to determine if libatomic should be linked
 fn shouldLinkLibAtomic(target: std.Target) bool {
     return switch (target.cpu.arch) {
-        .arm, .armeb, .thumb, .thumbeb => true,
-        .aarch64, .aarch64_be => false,
-        .riscv32, .riscv64 => true,
-        else => false,
+        .arm, .armeb, .thumb, .thumbeb => true, // ARM 32-bit
+        .aarch64, .aarch64_be => false, // ARM 64-bit typically has native atomics
+        .riscv32, .riscv64 => true, // RISC-V might need libatomic on some systems
+        else => false, // Assume x86, x86_64, and others have native atomics
     };
 }
