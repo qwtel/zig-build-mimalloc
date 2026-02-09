@@ -1,0 +1,13 @@
+.{
+    .name = .mimalloc,
+    .version = "3.2.7",
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{},
+    .fingerprint = 0x26391c3938bf56e1,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "include",
+    },
+}

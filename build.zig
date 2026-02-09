@@ -1,0 +1,113 @@
+const std = @import("std");
+
+pub fn build(b: *std.Build) !void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "mimalloc",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    lib.addIncludePath(b.path("include"));
+    lib.addIncludePath(b.path("src"));
+
+    const result = target.result;
+    const os = result.os;
+
+    var mi_sources = std.array_list.Managed([]const u8).init(b.allocator);
+    var mi_cflags = std.array_list.Managed([]const u8).init(b.allocator);
+    var mi_libraries = std.array_list.Managed([]const u8).init(b.allocator);
+    defer mi_sources.deinit();
+    defer mi_cflags.deinit();
+    defer mi_libraries.deinit();
+
+    try mi_sources.appendSlice(&.{
+        "src/alloc.c",
+        "src/alloc-aligned.c",
+        "src/alloc-posix.c",
+        "src/arena.c",
+        "src/arena-meta.c",
+        "src/bitmap.c",
+        "src/heap.c",
+        "src/init.c",
+        "src/libc.c",
+        "src/options.c",
+        "src/os.c",
+        "src/page.c",
+        "src/page-map.c",
+        "src/random.c",
+        "src/stats.c",
+        "src/theap.c",
+        "src/threadlocal.c",
+        "src/prim/prim.c",
+    });
+
+    if (result.os.tag.isBSD() or os.tag == .linux) {
+        try mi_cflags.appendSlice(&.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Wno-unknown-pragmas",
+            "-fvisibility=hidden",
+            "-Wstrict-prototypes",
+            "-Wno-static-in-inline",
+        });
+        if (result.abi.isMusl()) {
+            try mi_cflags.append("-ftls-model=local-dynamic");
+            lib.root_module.addCMacro("MI_LIBC_MUSL", "1");
+        } else {
+            try mi_cflags.append("-ftls-model=initial-exec");
+        }
+    }
+
+    if (optimize != .Debug) {
+        if (result.cpu.arch.isAARCH64()) {
+            try mi_cflags.append("-march=armv8.1-a");
+        }
+    }
+
+    if (optimize != .Debug) {
+        lib.root_module.addCMacro("MI_BUILD_RELEASE", "1");
+    }
+
+    if (os.tag == .windows) {
+        try mi_libraries.appendSlice(&.{ "psapi", "shell32", "user32", "advapi32", "bcrypt" });
+    } else {
+        try mi_libraries.append("pthread");
+        if (os.tag == .linux) {
+            try mi_libraries.appendSlice(&.{"rt"});
+        }
+        if (shouldLinkLibAtomic(target.result)) {
+            try mi_libraries.appendSlice(&.{"atomic"});
+        }
+    }
+
+    lib.addCSourceFiles(.{
+        .files = mi_sources.items,
+        .flags = mi_cflags.items,
+    });
+
+    lib.root_module.link_libc = true;
+
+    for (mi_libraries.items) |library| {
+        lib.linkSystemLibrary(library);
+    }
+    lib.root_module.addCMacro("MI_STATIC_LIB", "1");
+
+    lib.installHeadersDirectory(b.path("include"), "", .{});
+    b.installArtifact(lib);
+}
+
+fn shouldLinkLibAtomic(target: std.Target) bool {
+    return switch (target.cpu.arch) {
+        .arm, .armeb, .thumb, .thumbeb => true,
+        .aarch64, .aarch64_be => false,
+        .riscv32, .riscv64 => true,
+        else => false,
+    };
+}

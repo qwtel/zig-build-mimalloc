@@ -11,3 +11,6 @@ docs/
 *.gz
 .vscode
 .DS_STore
+.zig-cache
+zig-out
+
