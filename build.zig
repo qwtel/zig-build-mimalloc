@@ -13,11 +13,12 @@ pub fn build(b: *std.Build) !void {
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
 
-    lib.addIncludePath(b.path("include"));
-    lib.addIncludePath(b.path("src"));
+    lib.root_module.addIncludePath(b.path("include"));
+    lib.root_module.addIncludePath(b.path("src"));
 
     const result = target.result;
     const os = result.os;
@@ -93,15 +94,13 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .files = mi_sources.items,
         .flags = mi_cflags.items,
     });
 
-    lib.root_module.link_libc = true;
-
     for (mi_libraries.items) |library| {
-        lib.linkSystemLibrary(library);
+        lib.root_module.linkSystemLibrary(library, .{});
     }
     lib.root_module.addCMacro("MI_STATIC_LIB", "1");
 
