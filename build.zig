@@ -19,6 +19,8 @@ pub fn build(b: *std.Build) !void {
 
     lib.root_module.addIncludePath(b.path("include"));
     lib.root_module.addIncludePath(b.path("src"));
+    lib.root_module.addCMacro("__DATE__", "\"redacted\"");
+    lib.root_module.addCMacro("__TIME__", "\"redacted\"");
 
     const result = target.result;
     const os = result.os;
